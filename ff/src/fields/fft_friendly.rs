@@ -33,7 +33,7 @@ pub trait FftField: crate::Field {
     /// (for n = 2^i * FftConfig::SMALL_SUBGROUP_BASE^j for some i, j).
     fn get_root_of_unity(n: u64) -> Option<Self> {
         let mut omega: Self;
-        if let Some(large_subgroup_root_of_unity) = Self::LARGE_SUBGROUP_ROOT_OF_UNITY {
+        if let Some(large_subgroup_root_of_unity) = Self::LARGE_SUBGROUP_ROOT_OF_UNITY && Self::SMALL_SUBGROUP_BASE.is_some_and(|q| q != 2) {
             let q = Self::SMALL_SUBGROUP_BASE.expect(
                 "LARGE_SUBGROUP_ROOT_OF_UNITY should only be set in conjunction with SMALL_SUBGROUP_BASE",
             ) as u64;
