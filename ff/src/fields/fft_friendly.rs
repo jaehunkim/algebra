@@ -33,51 +33,55 @@ pub trait FftField: crate::Field {
     /// (for n = 2^i * FftConfig::SMALL_SUBGROUP_BASE^j for some i, j).
     fn get_root_of_unity(n: u64) -> Option<Self> {
         let mut omega: Self;
-        if let Some(large_subgroup_root_of_unity) = Self::LARGE_SUBGROUP_ROOT_OF_UNITY {
-            let q = Self::SMALL_SUBGROUP_BASE.expect(
-                "LARGE_SUBGROUP_ROOT_OF_UNITY should only be set in conjunction with SMALL_SUBGROUP_BASE",
-            ) as u64;
-            let small_subgroup_base_adicity = Self::SMALL_SUBGROUP_BASE_ADICITY.expect(
-                "LARGE_SUBGROUP_ROOT_OF_UNITY should only be set in conjunction with SMALL_SUBGROUP_BASE_ADICITY",
-            );
+        match (Self::LARGE_SUBGROUP_ROOT_OF_UNITY, Self::SMALL_SUBGROUP_BASE) {
+            (Some(large_subgroup_root_of_unity), Some(ssb)) if ssb != 2 => {
+                let q = Self::SMALL_SUBGROUP_BASE.expect(
+                    "LARGE_SUBGROUP_ROOT_OF_UNITY should only be set in conjunction with SMALL_SUBGROUP_BASE",
+                ) as u64;
+                let small_subgroup_base_adicity = Self::SMALL_SUBGROUP_BASE_ADICITY.expect(
+                    "LARGE_SUBGROUP_ROOT_OF_UNITY should only be set in conjunction with SMALL_SUBGROUP_BASE_ADICITY",
+                );
+    
+                let q_adicity = crate::utils::k_adicity(q, n);
+                let q_part = q.checked_pow(q_adicity)?;
+    
+                let two_adicity = crate::utils::k_adicity(2, n);
+                let two_part = 2u64.checked_pow(two_adicity)?;
+    
+                if n != two_part * q_part
+                    || (two_adicity > Self::TWO_ADICITY)
+                    || (q_adicity > small_subgroup_base_adicity)
+                {
+                    return None;
+                }
+    
+                omega = large_subgroup_root_of_unity;
+                for _ in q_adicity..small_subgroup_base_adicity {
+                    omega = omega.pow([q as u64]);
+                }
+    
+                for _ in two_adicity..Self::TWO_ADICITY {
+                    omega.square_in_place();
+                }
+            },
+            _ => {
+                // Compute the next power of 2.
+                let size = n.next_power_of_two() as u64;
+                let log_size_of_group = ark_std::log2(usize::try_from(size).expect("too large"));
 
-            let q_adicity = crate::utils::k_adicity(q, n);
-            let q_part = q.checked_pow(q_adicity)?;
+                if n != size || log_size_of_group > Self::TWO_ADICITY {
+                    return None;
+                }
 
-            let two_adicity = crate::utils::k_adicity(2, n);
-            let two_part = 2u64.checked_pow(two_adicity)?;
-
-            if n != two_part * q_part
-                || (two_adicity > Self::TWO_ADICITY)
-                || (q_adicity > small_subgroup_base_adicity)
-            {
-                return None;
-            }
-
-            omega = large_subgroup_root_of_unity;
-            for _ in q_adicity..small_subgroup_base_adicity {
-                omega = omega.pow([q as u64]);
-            }
-
-            for _ in two_adicity..Self::TWO_ADICITY {
-                omega.square_in_place();
-            }
-        } else {
-            // Compute the next power of 2.
-            let size = n.next_power_of_two() as u64;
-            let log_size_of_group = ark_std::log2(usize::try_from(size).expect("too large"));
-
-            if n != size || log_size_of_group > Self::TWO_ADICITY {
-                return None;
-            }
-
-            // Compute the generator for the multiplicative subgroup.
-            // It should be 2^(log_size_of_group) root of unity.
-            omega = Self::TWO_ADIC_ROOT_OF_UNITY;
-            for _ in log_size_of_group..Self::TWO_ADICITY {
-                omega.square_in_place();
+                // Compute the generator for the multiplicative subgroup.
+                // It should be 2^(log_size_of_group) root of unity.
+                omega = Self::TWO_ADIC_ROOT_OF_UNITY;
+                for _ in log_size_of_group..Self::TWO_ADICITY {
+                    omega.square_in_place();
+                }
             }
         }
+
         Some(omega)
     }
 }
